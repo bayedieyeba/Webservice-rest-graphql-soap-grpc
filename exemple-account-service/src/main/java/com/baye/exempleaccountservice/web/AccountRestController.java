@@ -1,7 +1,12 @@
 package com.baye.exempleaccountservice.web;
 
 import com.baye.exempleaccountservice.feign.CustomerRestClient;
+import com.baye.exempleaccountservice.mapper.CustomerMapper;
 import com.baye.exempleaccountservice.model.Customer;
+import com.baye.exemplecustomerservice.stub.CustomerServiceGrpc;
+import com.baye.exemplecustomerservice.stub.CustomerServiceOuterClass;
+import com.baye.exemplecustomerservice.web.CustomerSoapService;
+import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.graphql.client.HttpGraphQlClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +19,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/account-service")
@@ -23,6 +29,15 @@ public class AccountRestController {
     private RestTemplate restTemplate;
     @Autowired
     private CustomerRestClient customerRestClient;
+
+    @Autowired
+    private CustomerSoapService customerSoapService;
+
+    @Autowired
+    private CustomerMapper customerMapper;
+
+    @GrpcClient(value = "customerService")
+    private CustomerServiceGrpc.CustomerServiceBlockingStub customerServiceBlockingStub;
 
     @GetMapping("/customers")
     public List<Customer> listCustomers(){
@@ -109,4 +124,40 @@ public class AccountRestController {
         return customerById;
     }
 
+    @GetMapping("/soap/customers")
+    public List<Customer>  soapCustomers(){
+        List<com.baye.exemplecustomerservice.web.Customer> soapCustomers = customerSoapService.customerList();
+        return soapCustomers.stream().map(customerMapper::fromSoapCustomer).collect(Collectors.toList());
+
+    }
+
+    @GetMapping("/soap/customerById/{id}")
+    public Customer customerByIdSoap(@PathVariable Long id){
+        com.baye.exemplecustomerservice.web.Customer soapCustomer = customerSoapService.customerById(id);
+        return customerMapper.fromSoapCustomer(soapCustomer);
+    }
+
+
+    @GetMapping("/grpc/customers")
+    public List<Customer> grpcCustomers(){
+        CustomerServiceOuterClass.GetAllCustomersRequest request =
+                CustomerServiceOuterClass.GetAllCustomersRequest.newBuilder().build();
+        CustomerServiceOuterClass.GetAllCustomerResponse response =
+                customerServiceBlockingStub.getAllCustomers(request);
+        List<CustomerServiceOuterClass.Customer> customersList = response.getCustomersList();
+        List<Customer> customerList =
+                customersList.stream().map(customerMapper::fromGrpcCustomer).collect(Collectors.toList());
+        return customerList;
+    }
+
+    @GetMapping("/grpc/customers/{id}")
+    public Customer grpcCustomerById(@PathVariable Long id){
+        CustomerServiceOuterClass.GetCustomerByIdRequest request =
+                CustomerServiceOuterClass.GetCustomerByIdRequest.newBuilder()
+                        .setCustomerId(id)
+                        .build();
+        CustomerServiceOuterClass.GetCustomerByIdResponse response =
+                customerServiceBlockingStub.getCustomerById(request);
+        return customerMapper.fromGrpcCustomer(response.getCustomer());
+    }
 }

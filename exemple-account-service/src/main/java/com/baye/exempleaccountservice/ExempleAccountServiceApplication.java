@@ -1,5 +1,7 @@
 package com.baye.exempleaccountservice;
 
+import com.baye.exemplecustomerservice.web.CustomerSoapService;
+import com.baye.exemplecustomerservice.web.CustomerWS;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
@@ -17,5 +19,10 @@ public class ExempleAccountServiceApplication {
 	@Bean
 	RestTemplate restTemplate(){
 		return new RestTemplate();
+	}
+
+	@Bean
+	CustomerSoapService customerSoapService(){
+		return  new CustomerWS().getCustomerSoapServicePort();
 	}
 }
